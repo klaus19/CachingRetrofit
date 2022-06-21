@@ -6,6 +6,8 @@ import io.reactivex.rxjava3.core.Observable
 import retrofit2.http.Path
 
 interface ApiService {
+
+
     @GET("{path}")
     fun getRandomJokes(@Path("path") path: String?): Observable<JokeResponse>
 }

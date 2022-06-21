@@ -1,6 +1,8 @@
 package com.example.cachingretrofit;
 
 
+import static com.example.cachingretrofit.utils.Constants.BASE_URL;
+
 import android.os.Bundle;
 import android.widget.Toast;
 
@@ -17,6 +19,7 @@ import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Observer;
 import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import okhttp3.Cache;
 import okhttp3.CacheControl;
@@ -52,14 +55,19 @@ public class SecondActivity extends AppCompatActivity {
         Observable<JokeResponse> observable = apiService.getRandomJokes("random");
         observable.subscribeOn(Schedulers.newThread()).
                 observeOn(AndroidSchedulers.mainThread())
-                .map(jokeResponse -> jokeResponse.getValue()).subscribe(new Observer<String>() {
+                .map(new Function<JokeResponse, String>() {
+                    @Override
+                    public String apply(JokeResponse jokes) throws Exception {
+                        return jokes.getValue();
+                    }
+                }).subscribe(new Observer<String>() {
                     @Override
                     public void onSubscribe(Disposable d) {
                     }
 
                     @Override
                     public void onNext(String s) {
-                        binding.textView.setText(s);
+                       binding.textView.setText(s);
                     }
 
                     @Override
@@ -72,6 +80,7 @@ public class SecondActivity extends AppCompatActivity {
 
                     }
                 });
+
 
     }
 
@@ -96,10 +105,35 @@ public class SecondActivity extends AppCompatActivity {
                 .addCallAdapterFactory(RxJava3CallAdapterFactory.create())
                 .addConverterFactory(GsonConverterFactory.create(new Gson()))
                 .client(httpClient)
-                .baseUrl(Constants.BASE_URL)
+                .baseUrl(BASE_URL)
                 .build();
 
         apiService = retrofit.create(ApiService.class);
+
+    }
+
+    private Interceptor provideOfflineCacheInterceptor() {
+
+        return new Interceptor() {
+            @Override
+            public Response intercept(Chain chain) throws IOException {
+                try {
+                    return chain.proceed(chain.request());
+                } catch (Exception e) {
+
+
+                    CacheControl cacheControl = new CacheControl.Builder()
+                            .onlyIfCached()
+                            .maxStale(1, TimeUnit.DAYS)
+                            .build();
+
+                    Request offlineRequest = chain.request().newBuilder()
+                            .cacheControl(cacheControl)
+                            .build();
+                    return chain.proceed(offlineRequest);
+                }
+            }
+        };
     }
 
     private Interceptor provideCacheInterceptor() {
@@ -119,6 +153,10 @@ public class SecondActivity extends AppCompatActivity {
                             .maxStale(1, TimeUnit.DAYS)
                             .build();
 
+                    /*return originalResponse.newBuilder()
+                            .header("Cache-Control", "public, max-stale=" + 60 * 60 * 24)
+                            .build();*/
+
 
                     request = request.newBuilder()
                             .cacheControl(cc)
@@ -134,31 +172,5 @@ public class SecondActivity extends AppCompatActivity {
 
     }
 
-
-    private Interceptor provideOfflineCacheInterceptor() {
-
-        return new Interceptor() {
-            @Override
-            public Response intercept(Interceptor.Chain chain) throws IOException {
-                try {
-                    return chain.proceed(chain.request());
-                } catch (Exception e) {
-
-
-                    CacheControl cacheControl = new CacheControl.Builder()
-                            .onlyIfCached()
-                            .maxStale(1, TimeUnit.DAYS)
-                            .build();
-
-                    Request offlineRequest = chain.request().newBuilder()
-                            .cacheControl(cacheControl)
-                            .build();
-                    return chain.proceed(offlineRequest);
-                }
-            }
-        };
-
-
-
-    }
 }
+
